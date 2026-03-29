@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  avatar    String?
+  role      String     @default("USER")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  password  String?
+  status    String     @default("ACTIVE")
+  posts     BlogPost[]
+  comments  Comment[]
+  skills    Skill[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Category {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  slug   String  @unique
+  icon   String?
+  order  Int     @default(0)
+  skills Skill[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id     String     @id @default(cuid())
+  name   String     @unique
+  slug   String     @unique
+  posts  BlogPost[] @relation("BlogPostToTag")
+  skills Skill[]    @relation("SkillToTag")
+
+  @@map("tags")
+}
+
+model Skill {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  description   String
+  content       String?
+  coverImage    String?
+  price         Float     @default(0)
+  downloadCount Int       @default(0)
+  viewCount     Int       @default(0)
+  isPublished   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  categoryId    String
+  authorId      String
+  comments      Comment[]
+  files         File[]
+  category      Category  @relation(fields: [categoryId], references: [id])
+  author        User      @relation(fields: [authorId], references: [id])
+  tags          Tag[]     @relation("SkillToTag")
+
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([slug])
+  @@map("skills")
+}
+
+model File {
+  id        String   @id @default(cuid())
+  filename  String
+  url       String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+  skillId   String?
+  skill     Skill?   @relation(fields: [skillId], references: [id])
+
+  @@map("files")
+}
+
+model BlogPost {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  excerpt     String?
+  content     String
+  coverImage  String?
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+  tags        Tag[]     @relation("BlogPostToTag")
+
+  @@index([authorId])
+  @@index([slug])
+  @@map("blog_posts")
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  authorId  String
+  postId    String?
+  skillId   String?
+  author    User      @relation(fields: [authorId], references: [id])
+  post      BlogPost? @relation(fields: [postId], references: [id])
+  skill     Skill?    @relation(fields: [skillId], references: [id])
+
+  @@index([authorId])
+  @@index([postId])
+  @@index([skillId])
+  @@map("comments")
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  type        String   @default("text") // text, boolean, number, json
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String   // e.g., UPDATE_USER_ROLE, TOGGLE_MAINTENANCE
+  targetType String   // e.g., USER, SYSTEM_SETTING, BLOG_POST
+  targetId   String?  // The ID of the affected entity
+  details    String?  // JSON string storing before/after changes
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([targetType])
+  @@map("audit_logs")
+}
