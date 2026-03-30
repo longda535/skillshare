@@ -1,31 +1,34 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("正在同步 Mock 数据到 SQLite 数据库...");
 
+  const hashedPassword = await bcrypt.hash("admin123", 10);
+
   // 1. 创建默认系统用户
   const admin = await prisma.user.upsert({
     where: { email: "admin@skillshare.com" },
-    update: { password: "admin123" },
+    update: { password: hashedPassword },
     create: {
       email: "admin@skillshare.com",
       name: "AI 视觉研究室",
       avatar: "https://i.pravatar.cc/150?u=a042581f4e29026704d",
-      password: "admin123",
+      password: hashedPassword,
       role: "ADMIN",
     },
   });
 
   const creator = await prisma.user.upsert({
     where: { email: "creator@skillshare.com" },
-    update: { password: "admin123" },
+    update: { password: hashedPassword },
     create: {
       email: "creator@skillshare.com",
       name: "Prompt 专家",
       avatar: "https://i.pravatar.cc/150?u=u2",
-      password: "admin123",
+      password: hashedPassword,
       role: "USER",
     },
   });

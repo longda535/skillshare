@@ -3,6 +3,7 @@ import { prisma } from "./prisma.js";
 export type AuditAction = 
   | "UPDATE_USER_ROLE" 
   | "UPDATE_USER_STATUS" 
+  | "UPDATE_USER_PASSWORD"
   | "DELETE_USER" 
   | "UPDATE_SYSTEM_SETTING" 
   | "PUBLISH_BLOG_POST" 

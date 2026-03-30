@@ -2,6 +2,13 @@ import { Hono } from "hono";
 import { prisma } from "../lib/prisma.js";
 import { adminAuth } from "../middleware/adminAuth.js";
 import { createAuditLog } from "../lib/audit.js";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
+
+const updateUserSchema = z.object({
+  role: z.enum(["ADMIN", "USER"]).optional(),
+  status: z.string().optional()
+});
 
 const adminRoutes = new Hono();
 
@@ -89,11 +96,10 @@ adminRoutes.get("/users", async (c) => {
 });
 
 // 更新用户信息 (角色或状态)
-adminRoutes.patch("/users/:id", async (c) => {
+adminRoutes.patch("/users/:id", zValidator("json", updateUserSchema), async (c) => {
   const id = c.req.param("id");
   const currentUserId = c.req.header("x-user-id");
-  const body = await c.req.json();
-  const { role, status } = body;
+  const { role, status } = c.req.valid("json");
 
   //禁止管理员修改自己的角色或状态，防止把自己锁在外面
   if (id === currentUserId && (role || status)) {

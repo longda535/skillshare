@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Save, Loader2, Image as ImageIcon, Tag as TagIcon, X, Eye, FileText, HelpCircle, RefreshCcw } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Image as ImageIcon, Tag as TagIcon, X, Eye, FileText, HelpCircle, RefreshCcw, Bold, Italic, Link as LinkIcon, Code, Heading, List } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ export function BlogEditor({ initialData, mode, authorId }: BlogEditorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [tags, setTags] = useState<string[]>(initialData?.tags?.map(t => t.name) || []);
   const [tagInput, setTagInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
@@ -75,12 +76,13 @@ export function BlogEditor({ initialData, mode, authorId }: BlogEditorProps) {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"}/upload`, {
         method: "POST",
         headers: {
-          "x-user-role": session?.user?.role || ""
+          "x-user-role": session?.user?.role || "",
+          "x-user-id": session?.user?.id || ""
         },
         body: formData,
       });
 
-      if (!response.ok) throw new Error("上传识别");
+      if (!response.ok) throw new Error("图片上传失败(请检查凭证)");
       const result = await response.json();
       return result.data.url;
     } catch (error) {
@@ -103,18 +105,55 @@ export function BlogEditor({ initialData, mode, authorId }: BlogEditorProps) {
     }
   };
 
+  const insertMarkdown = (prefix: string, suffix: string = "") => {
+    if (!textareaRef.current) return;
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    const text = formData.content;
+    const before = text.substring(0, start);
+    const selected = text.substring(start, end);
+    const after = text.substring(end);
+
+    const insertedText = `${prefix}${selected || (suffix ? "文本" : "")}${suffix}`;
+    const newContent = before + insertedText + after;
+    
+    setFormData(prev => ({ ...prev, content: newContent }));
+    
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(start + prefix.length, start + prefix.length + (selected || (suffix ? "文本" : "")).length);
+    }, 0);
+  };
+
   const onInlineUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setIsLoading(true);
       const url = await handleImageUpload(file);
       if (url) {
-        const imageMarkdown = `\n![${file.name}](${url})\n`;
-        setFormData(prev => ({ ...prev, content: prev.content + imageMarkdown }));
+        insertMarkdown(`![${file.name}](${url})`);
         toast.success("图片已插入正文！");
       }
       setIsLoading(false);
     }
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      setIsLoading(true);
+      const url = await handleImageUpload(file);
+      if (url) {
+        insertMarkdown(`![${file.name}](${url})`);
+        toast.success("拖拽图片插入成功！");
+      }
+      setIsLoading(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -204,48 +243,68 @@ export function BlogEditor({ initialData, mode, authorId }: BlogEditorProps) {
                 />
               </div>
 
-              <Tabs defaultValue="edit" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-4">
-                  <TabsTrigger value="edit" className="gap-2">
-                    <FileText className="h-4 w-4" /> 编辑内容
-                  </TabsTrigger>
-                  <TabsTrigger value="preview" className="gap-2">
-                    <Eye className="h-4 w-4" /> 实时预览
-                  </TabsTrigger>
-                </TabsList>
-                <div className="flex gap-2 mb-2 p-1 bg-muted/30 rounded-md">
+              <div className="flex flex-col border rounded-md overflow-hidden bg-background">
+                {/* Toolbar */}
+                <div className="bg-muted/30 p-2 flex items-center gap-1 border-b flex-wrap">
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => insertMarkdown("**", "**")} title="加粗">
+                    <Bold className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => insertMarkdown("*", "*")} title="斜体">
+                    <Italic className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => insertMarkdown("### ", "")} title="标题">
+                    <Heading className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => insertMarkdown("- ", "")} title="列表">
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <div className="w-px h-4 bg-border mx-1" />
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => insertMarkdown("[", "](url)")} title="超链接">
+                    <LinkIcon className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => insertMarkdown("\n```\n", "\n```\n")} title="代码块">
+                    <Code className="h-4 w-4" />
+                  </Button>
+                  <div className="w-px h-4 bg-border mx-1" />
                   <label className="cursor-pointer">
-                    <Button type="button" variant="ghost" size="sm" className="gap-2 h-8" asChild>
+                    <Button type="button" variant="ghost" size="sm" className="gap-1 h-8 px-2 text-muted-foreground hover:text-foreground" asChild>
                       <span>
-                        <ImageIcon className="h-3.5 w-3.5" /> 插入图片
+                        <ImageIcon className="h-4 w-4" />
+                        <span className="hidden sm:inline">插入图片</span>
                         <input type="file" className="hidden" accept="image/*" onChange={onInlineUpload} />
                       </span>
                     </Button>
                   </label>
                 </div>
-                <TabsContent value="edit" className="space-y-2 mt-0">
-                  <label className="text-sm font-medium sr-only">正文</label>
+                
+                {/* Editor & Preview Split Pane */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[500px] h-[65vh] max-h-[800px] divide-y lg:divide-y-0 lg:divide-x">
+                  {/* Left: Editor */}
                   <Textarea 
                     name="content" 
-                    placeholder="使用 Markdown 编写您的内容..." 
+                    placeholder="使用 Markdown 编写您的内容...支持直接拖拽图片到此处上传" 
                     value={formData.content}
                     onChange={handleInputChange}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    ref={textareaRef}
                     required
-                    className="min-h-[500px] font-mono leading-relaxed resize-y"
+                    className="h-full border-0 resize-none font-mono text-sm leading-relaxed p-4 focus-visible:ring-0 rounded-none bg-transparent"
                   />
-                </TabsContent>
-                <TabsContent value="preview" className="mt-0">
-                  <div className="min-h-[500px] p-6 border rounded-md bg-muted/10 prose prose-neutral dark:prose-invert max-w-none overflow-y-auto">
+                  
+                  {/* Right: Preview (hidden on small screens, can scroll) */}
+                  <div className="hidden lg:block p-6 overflow-y-auto prose dark:prose-invert max-w-none bg-muted/5">
                     {formData.content ? (
                       <ReactMarkdown>{formData.content}</ReactMarkdown>
                     ) : (
-                      <div className="text-muted-foreground italic h-full flex items-center justify-center py-20">
-                        暂无预览内容
+                      <div className="text-muted-foreground italic h-full flex flex-col items-center justify-center py-20 opacity-50 select-none">
+                        <FileText className="h-16 w-16 mb-4" />
+                        <p>Markdown 实时预览区域</p>
                       </div>
                     )}
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

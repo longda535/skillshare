@@ -31,6 +31,9 @@ uploadRoutes.post("/", userAuth(), async (c) => {
     const fileName = `${uuidv4()}.${extension}`;
     const filePath = join(UPLOAD_DIR, fileName);
 
+    // Ensure directory exists
+    await mkdir(UPLOAD_DIR, { recursive: true });
+
     // Convert File to Buffer and save
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
